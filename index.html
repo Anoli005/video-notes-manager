@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <title>🎬 Менеджер меток к видео</title>
   <style>
-    body { font-family: sans-serif; padding:20px; max-width:800px; margin:auto; background:#f9f9f9; }
-    input, button { padding:10px; font-size:16px; margin:6px 0; width:100%; box-sizing:border-box; }
-    .note { border-bottom:1px solid #ccc; padding:10px 0; }
-    .note input { width:60%; }
-    .note button, .note .goto { margin-left:10px; }
-    #playerContainer { width:100%; margin:20px 0; }
-    label { font-weight:bold; }
-    small { color:#555; }
+    body { font-family: sans-serif; padding:20px; max-width:800px; margin:auto; background:#f9f9f9 }
+    input, button { padding:10px; font-size:16px; margin:6px 0; width:100%; box-sizing:border-box }
+    .note { border-bottom:1px solid #ccc; padding:10px 0 }
+    .note input { width:60% }
+    .note .goto, .note button { margin-left:10px; }
+    #playerContainer { width:100%; margin:20px 0 }
+    label { font-weight:bold }
+    small { color:#555 }
   </style>
 </head>
 <body>
@@ -35,7 +35,7 @@
 <script>
   let notes = JSON.parse(localStorage.getItem("vid_notes") || "[]");
 
-  // авто-добавление из URL
+  // Авто-добавление из URL (букмарклет)
   ;(function(){
     const p = new URLSearchParams(location.search);
     const src   = p.get('src');
@@ -61,10 +61,10 @@
     container.innerHTML = '';
     const yt = src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]{11})/);
     if (yt) {
-      const id = yt[1];
       const iframe = document.createElement('iframe');
-      iframe.src = `https://www.youtube.com/embed/${id}?start=${startTime}&autoplay=1`;
-      iframe.width = '100%'; iframe.height = '480';
+      iframe.src = `https://www.youtube.com/embed/${yt[1]}?start=${startTime}&autoplay=1`;
+      iframe.width = '100%';
+      iframe.height = '480';
       iframe.allow = 'accelerometer; autoplay; encrypted-media; picture-in-picture';
       iframe.allowFullscreen = true;
       container.appendChild(iframe);
@@ -88,7 +88,7 @@
   }
 
   function saveNote() {
-    let sec=0, src='';
+    let sec = 0, src = '';
     const v = container.querySelector('video');
     const i = container.querySelector('iframe');
     if (v) {
@@ -124,7 +124,7 @@
     const html = notes
       .map((n, i) => ({n,i}))
       .filter(({n}) => n.title.toLowerCase().includes(q))
-      .map(({n,i}) => {
+      .map(({n, i}) => {
         let link;
         const yt = n.src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]{11})/);
         if (yt) {
@@ -135,14 +135,13 @@
         return `
           <div class="note">
             <input value="${n.title}" onchange="editNote(${i},this.value)">
-            <button class="goto" onclick="
-              window.open('${link.replace(/'/g,"\\'")}','_blank');
-            ">Перейти</button>
+            <a class="goto" href="${link}" target="_blank" rel="noopener">Перейти</a>
             <button onclick="deleteNote(${i})">🗑 Удалить</button><br>
             <small>🕓 ${n.created} | ⏱ ${formatTime(n.seconds)}</small>
           </div>
         `;
-      }).join('');
+      })
+      .join('');
     list.innerHTML = html || "<i>Метки не найдены.</i>";
   }
 
@@ -150,8 +149,9 @@
     notes[i].title = v;
     localStorage.setItem("vid_notes", JSON.stringify(notes));
   }
+
   function deleteNote(i) {
-    if (!confirm("Удалить?")) return;
+    if (!confirm("Удалить метку?")) return;
     notes.splice(i,1);
     localStorage.setItem("vid_notes", JSON.stringify(notes));
     renderNotes();
