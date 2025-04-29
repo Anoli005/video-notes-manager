@@ -4,24 +4,25 @@
   <meta charset="UTF-8">
   <title>🎬 Менеджер меток к видео</title>
   <style>
-    body { font-family: sans-serif; padding:20px; max-width:800px; margin:auto; background:#f9f9f9; }
-    input, button { padding:10px; font-size:16px; margin:6px 0; width:100%; box-sizing:border-box; }
-    .note { border-bottom:1px solid #ccc; padding:10px 0; }
-    .note input { width:60%; }
-    .note button, .note a { margin-left:10px; }
-    video { width:100%; margin:20px 0; }
-    label { font-weight:bold; }
-    small { color:#555; }
+    body { font-family: sans-serif; padding:20px; max-width:800px; margin:auto; background:#f9f9f9 }
+    input, button { padding:10px; font-size:16px; margin:6px 0; width:100%; box-sizing:border-box }
+    .note { border-bottom:1px solid #ccc; padding:10px 0 }
+    .note input { width:60% }
+    .note button, .note a { margin-left:10px }
+    #playerContainer { width:100%; margin:20px 0; }
+    label { font-weight:bold }
+    small { color:#555 }
   </style>
 </head>
 <body>
 
 <h2>🎬 Менеджер меток к видео</h2>
 
-<input id="videoURL" placeholder="🔗 Вставьте ссылку на видео (например, .mp4)" />
+<input id="videoURL" placeholder="🔗 Вставьте ссылку на видео (YouTube или .mp4)" />
 <button onclick="loadVideo()">Загрузить видео</button>
 
-<video id="player" controls></video>
+<!-- Здесь будет либо <iframe>, либо <video> -->
+<div id="playerContainer"></div>
 
 <label for="titleInput">📝 Тема метки:</label>
 <input id="titleInput" placeholder="Например: Катализаторы" />
@@ -33,53 +34,80 @@
 <div id="notesList"></div>
 
 <script>
-  // 1) Читаем существующие метки
   let notes = JSON.parse(localStorage.getItem("vid_notes") || "[]");
 
-  // 2) Авто-импорт метки из параметров URL (если открыли через букмарклет)
+  // авто-импорт из URL
   ;(function(){
     const p = new URLSearchParams(location.search);
     const src   = p.get('src');
     const title = p.get('title');
     const time  = parseFloat(p.get('time'));
     if (src && title && !isNaN(time)) {
-      notes.push({
-        src: decodeURIComponent(src),
-        title: decodeURIComponent(title),
-        seconds: time,
-        created: new Date().toLocaleString()
-      });
+      notes.push({ src:decodeURIComponent(src), title:decodeURIComponent(title), seconds:time, created:new Date().toLocaleString() });
       localStorage.setItem("vid_notes", JSON.stringify(notes));
-      // убираем параметры, чтобы при перезагрузке не дублировалось
-      history.replaceState(null, '', location.pathname);
+      history.replaceState(null,'',location.pathname);
     }
   })();
 
-  // 3) Функции управления
-  const player = document.getElementById("player");
-  const titleEl = document.getElementById("titleInput");
-  const urlInput = document.getElementById("videoURL");
+  const container = document.getElementById('playerContainer');
+  const titleEl   = document.getElementById("titleInput");
+  const urlInput  = document.getElementById("videoURL");
+
+  // Вставляет в контейнер либо iframe YouTube, либо video.mp4
+  function playSrc(src, startTime=0) {
+    container.innerHTML = '';
+    const youTubeMatch = src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]{11})/);
+    if (youTubeMatch) {
+      const id = youTubeMatch[1];
+      const iframe = document.createElement('iframe');
+      iframe.src = `https://www.youtube.com/embed/${id}?start=${startTime}&autoplay=1`;
+      iframe.width = '100%';
+      iframe.height = '480';
+      iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      iframe.allowFullscreen = true;
+      container.appendChild(iframe);
+    } else {
+      const video = document.createElement('video');
+      video.controls = true;
+      video.src = src;
+      video.currentTime = startTime;
+      video.width = container.clientWidth;
+      container.appendChild(video);
+      video.play();
+    }
+  }
 
   function loadVideo() {
     const src = urlInput.value.trim();
     if (!src) return alert("Введите ссылку на видео.");
-    player.src = src;
-    player.style.display = "block";
+    playSrc(src, 0);
   }
 
   function saveNote() {
-    if (!player.src) return alert("Сначала загрузите видео.");
-    const sec = parseFloat(player.currentTime.toFixed(1));
+    // пытаемся получить время из iframe? для YouTube надо вводить вручную
+    let sec = 0, src = '';
+    const iframe = container.querySelector('iframe');
+    const video  = container.querySelector('video');
+    if (video) {
+      sec = Math.floor(video.currentTime);
+      src = video.src;
+    } else if (iframe) {
+      // у YouTube не узнаем currentTime, спросим вручную
+      const i = prompt("⏱ Введите время (m:s или s)");
+      if (!i) return;
+      sec = i.includes(':')
+        ? i.split(':').reduce((a,b,i)=>i?b:a*60+ +b,0)
+        : parseInt(i,10);
+      if (isNaN(sec)) return alert("Некорректное время");
+      src = iframe.src;
+    } else {
+      return alert("Сначала загрузите видео.");
+    }
     const title = titleEl.value.trim();
     if (!title) return alert("Введите тему.");
-    notes.push({
-      title,
-      seconds: sec,
-      src: player.src,
-      created: new Date().toLocaleString()
-    });
+    notes.push({ title, seconds:sec, src, created:new Date().toLocaleString() });
     localStorage.setItem("vid_notes", JSON.stringify(notes));
-    titleEl.value = "";
+    titleEl.value = '';
     renderNotes();
   }
 
@@ -90,13 +118,13 @@
     return `${h}:${m}:${sec}`;
   }
 
-  function renderNotes(filter = "") {
+  function renderNotes(filter="") {
     const list = document.getElementById("notesList");
     const q = filter.toLowerCase();
-    const filtered = notes.filter(n => n.title.toLowerCase().includes(q));
-    list.innerHTML = filtered.map((n,i) => `
+    const filtered = notes.filter(n=>n.title.toLowerCase().includes(q));
+    list.innerHTML = filtered.map((n,i)=>`
       <div class="note">
-        <input value="${n.title}" onchange="editNote(${i}, this.value)">
+        <input value="${n.title}" onchange="editNote(${i},this.value)">
         <a href="#" onclick="goToNote(${i})">Перейти</a>
         <button onclick="deleteNote(${i})">🗑 Удалить</button><br>
         <small>🕓 ${n.created} | ⏱ ${formatTime(n.seconds)}</small>
@@ -106,13 +134,7 @@
 
   function goToNote(i) {
     const n = notes[i];
-    player.src = n.src;
-    player.style.display = "block";
-    player.addEventListener("loadedmetadata", function jump(){
-      player.currentTime = n.seconds;
-      player.play();
-      player.removeEventListener("loadedmetadata", jump);
-    });
+    playSrc(n.src, n.seconds);
   }
 
   function editNote(i, value) {
@@ -128,7 +150,6 @@
     }
   }
 
-  // 4) Отрисуем список сразу
   renderNotes();
 </script>
 
