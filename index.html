@@ -2,53 +2,76 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Мини-менеджер меток</title>
+  <title>Менеджер меток</title>
   <style>
-    body { font-family: sans-serif; padding:20px; max-width:600px; margin:auto }
-    input, button { font-size:16px; padding:8px; margin:4px 0; width:100%; box-sizing:border-box }
-    ul { list-style:none; padding:0 }
-    li { padding:8px 0; border-bottom:1px solid #ddd }
-    a { color: blue; text-decoration: underline; cursor: pointer; }
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+    input, button { font-size: 16px; padding: 8px; margin: 4px 0; width: 100%; box-sizing: border-box; }
+    .note { border-bottom: 1px solid #ccc; padding: 10px 0; }
+    .note a { color: blue; text-decoration: underline; }
   </style>
 </head>
 <body>
 
-<h2>Менеджер меток</h2>
+<h2>🎬 Менеджер меток</h2>
 
-<input id="url" placeholder="Ссылка на видео (VK, YouTube или .mp4)" />
-<button id="load">Загрузить и поставить метку</button>
-
-<ul id="notes"></ul>
+<button onclick="addNote()">➕ Добавить метку</button>
+<div id="notesList"></div>
 
 <script>
-  const notes = [];
+  let notes = JSON.parse(localStorage.getItem("vid_notes") || "[]");
 
-  document.getElementById('load').onclick = () => {
-    const src = document.getElementById('url').value.trim();
-    if (!src) return alert('Введите ссылку');
-    const time = prompt('Время в секундах (например 300 = 5 мин):', '0');
-    if (time === null) return;
-    const sec = parseInt(time,10);
-    if (isNaN(sec)) return alert('Неправильное время');
-    notes.push({ src, sec });
-    render();
-  };
-
-  function render() {
-    const ul = document.getElementById('notes');
-    ul.innerHTML = '';
-    notes.forEach((n,i) => {
-      // определяем внешний линк
-      let link = n.src;
-      const yt = link.match(/youtu\.be\/(.{11})/) || link.match(/youtube\.com\/watch\?v\=(.{11})/);
-      if (yt) {
-        link = `https://www.youtube.com/watch?v=${yt[1]}&t=${n.sec}s`;
-      }
-      const li = document.createElement('li');
-      li.innerHTML = `#${i+1} — <a href="${link}" target="_blank">Перейти на ${n.sec}s</a>`;
-      ul.appendChild(li);
-    });
+  function formatTime(s) {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = Math.floor(s % 60);
+    return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${sec.toString().padStart(2,'0')}`;
   }
+
+  function addNote() {
+    const title = prompt("📝 Введите тему метки:");
+    if (!title) return;
+
+    const timeStr = prompt("⏱ Введите время (часы, минуты, секунды через пробел):", "0 0 0");
+    if (!timeStr) return;
+    const [h, m, s] = timeStr.trim().split(" ").map(Number);
+    const seconds = (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
+
+    const url = prompt("🔗 Вставьте ссылку на видео:");
+    if (!url) return;
+
+    notes.push({ title, seconds, url, created: new Date().toLocaleString() });
+    localStorage.setItem("vid_notes", JSON.stringify(notes));
+    renderNotes();
+  }
+
+  function renderNotes() {
+    const list = document.getElementById("notesList");
+    if (!notes.length) {
+      list.innerHTML = "<i>Метки не найдены.</i>";
+      return;
+    }
+
+    list.innerHTML = notes.map((n, i) => {
+      let link = n.url;
+      const ytMatch = link.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+      if (ytMatch) {
+        link = `https://www.youtube.com/watch?v=${ytMatch[1]}&t=${n.seconds}s`;
+      } else if (link.includes("vk.com")) {
+        link += `#t=${n.seconds}`;
+      }
+
+      return `
+        <div class="note">
+          <b>${n.title}</b><br>
+          ⏱ <code>${formatTime(n.seconds)}</code><br>
+          📅 ${n.created}<br>
+          <a href="${link}" target="_blank">▶ Перейти</a>
+        </div>
+      `;
+    }).join("");
+  }
+
+  renderNotes();
 </script>
 
 </body>
