@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Менеджер меток к видео</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 700px; margin: auto; }
+    input, button { padding: 8px; font-size: 16px; margin: 4px 0; width: 100%; }
+    .note { border-bottom: 1px solid #ccc; padding: 10px 0; }
+    .note input { width: 60%; }
+    .note button { margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🎬 Менеджер меток к видео</h2>
+
+  <label>⏱ Время (секунды или формат 1:30):</label>
+  <input id="timeInput" placeholder="Например: 90 или 1:30">
+
+  <label>📝 Тема метки:</label>
+  <input id="titleInput" placeholder="Например: Катализаторы">
+
+  <button onclick="saveNote()">📌 Сохранить метку</button>
+
+  <hr>
+
+  <input id="search" placeholder="🔍 Поиск..." oninput="renderNotes(this.value)">
+  <div id="notesList"></div>
+
+  <script>
+    const timeEl = document.getElementById("timeInput");
+    const titleEl = document.getElementById("titleInput");
+    let notes = JSON.parse(localStorage.getItem("vid_notes") || "[]");
+
+    function parseTime(t) {
+      if (!t) return 0;
+      const parts = t.split(":").map(Number).reverse();
+      return parts.reduce((sum, v, i) => sum + v * Math.pow(60, i), 0);
+    }
+
+    function saveNote() {
+      const sec = parseTime(timeEl.value.trim());
+      const title = titleEl.value.trim();
+      if (!title) return alert("Введите тему.");
+      const url = prompt("URL видео (с #t=)?", location.href);
+      notes.push({ title, seconds: sec, url, created: new Date().toLocaleString() });
+      localStorage.setItem("vid_notes", JSON.stringify(notes));
+      timeEl.value = ""; titleEl.value = "";
+      renderNotes();
+    }
+
+    function formatTime(s) {
+      const h = String(Math.floor(s/3600)).padStart(2,'0'),
+            m = String(Math.floor((s%3600)/60)).padStart(2,'0'),
+            ss = String(s%60).padStart(2,'0');
+      return `${h}:${m}:${ss}`;
+    }
+
+    function renderNotes(filter="") {
+      const list = document.getElementById("notesList");
+      const q = filter.toLowerCase();
+      const displayed = notes.filter(n=>n.title.toLowerCase().includes(q));
+      list.innerHTML = displayed.map((n,i)=>
+        `<div class="note">
+           <input value="${n.title}" onchange="edit(${i}, this.value)">
+           <a href="${n.url}" target="_blank">Перейти</a>
+           <button onclick="del(${i})">🗑</button><br>
+           <small>🕓 ${n.created} | ⏱ ${formatTime(n.seconds)}</small>
+         </div>`
+      ).join("") || "<i>Метки не найдены.</i>";
+    }
+
+    function edit(i,v){ notes[i].title=v; localStorage.setItem("vid_notes",JSON.stringify(notes)); }
+    function del(i){ if(confirm("Удалить?")){ notes.splice(i,1); localStorage.setItem("vid_notes",JSON.stringify(notes)); renderNotes(); }}
+
+    renderNotes();
+  </script>
+</body>
+</html>
