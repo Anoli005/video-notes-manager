@@ -5,21 +5,26 @@
   <title>Менеджер меток к видео</title>
   <style>
     body { font-family: sans-serif; padding: 20px; max-width: 700px; margin: auto; }
-    input, button { padding: 8px; font-size: 16px; margin: 4px 0; width: 100%; }
+    input, button { padding: 8px; font-size: 16px; margin: 4px 0; width: 100%; box-sizing: border-box; }
     .note { border-bottom: 1px solid #ccc; padding: 10px 0; }
     .note input { width: 60%; }
     .note button { margin-left: 10px; }
+    video { width: 100%; margin-bottom: 20px; }
   </style>
 </head>
 <body>
   <h2>🎬 Менеджер меток к видео</h2>
 
-  <label>⏱ Время (секунды или формат 1:30):</label>
+  <!-- Плеер для воспроизведения по метке -->
+  <video id="player" controls></video>
+
+  <!-- Форма добавления метки -->
+  <label>⏱ Время (сек или MM:SS):</label>
   <input id="timeInput" placeholder="Например: 90 или 1:30">
-
+  <label>URL видео (без #t):</label>
+  <input id="srcInput" placeholder="https://.../video.mp4 или YouTube-ссылка">
   <label>📝 Тема метки:</label>
-  <input id="titleInput" placeholder="Например: Катализаторы">
-
+  <input id="titleInput" placeholder="Тема...">
   <button onclick="saveNote()">📌 Сохранить метку</button>
 
   <hr>
@@ -28,81 +33,127 @@
   <div id="notesList"></div>
 
   <script>
-    const timeEl = document.getElementById("timeInput");
-    const titleEl = document.getElementById("titleInput");
-    let notes = JSON.parse(localStorage.getItem("vid_notes") || "[]");
+    // Загрузка архива из localStorage
+    let notes = JSON.parse(localStorage.getItem('vid_notes') || '[]');
+
+    // При заходе с параметрами ?src=...&time=...&title=...
     const params = new URLSearchParams(location.search);
-if (params.has('src') && params.has('time')) {
-  // 1) читаем из URL
-  const rawSrc  = decodeURIComponent(params.get('src'));
-  const sec     = parseFloat(params.get('time')) || 0;
-  const title   = params.get('title') ? decodeURIComponent(params.get('title')) : "";
+    if (params.has('src') && params.has('time')) {
+      const rawSrc = decodeURIComponent(params.get('src'));
+      const sec    = parseFloat(params.get('time')) || 0;
+      const title  = params.has('title')
+                     ? decodeURIComponent(params.get('title'))
+                     : `Метка ${formatTime(sec)}`;
 
-  // 2) показываем видео
-  const player = document.getElementById("player");
-  player.src = rawSrc;
-  player.addEventListener("loadedmetadata", () => {
-    player.currentTime = sec;
-    // если хотите сразу начать воспроизведение, раскомментируйте:
-    // player.play();
-  });
+      // Вставляем в плеер и перематываем
+      const player = document.getElementById('player');
+      player.src = rawSrc;
+      player.addEventListener('loadedmetadata', () => {
+        player.currentTime = sec;
+      });
 
-  // 3) (опционально) создаём заметку сразу же
-  notes.push({
-    title: title || `Метка ${formatTime(sec)}`,
-    seconds: sec,
-    url: rawSrc + "#t=" + sec,
-    created: new Date().toLocaleString()
-  });
-  localStorage.setItem("vid_notes", JSON.stringify(notes));
+      // Сохраняем в архив, если нет дубликата
+      if (!notes.some(n => n.src === rawSrc && n.seconds === sec && n.title === title)) {
+        notes.push({
+          title: title,
+          seconds: sec,
+          src: rawSrc,
+          created: new Date().toLocaleString()
+        });
+        localStorage.setItem('vid_notes', JSON.stringify(notes));
+      }
 
-  // 4) чистим строку параметров, чтобы 목록 не дублировался при перезагрузке
-  history.replaceState(null, "", location.pathname);
-}
-
-
-
-    function parseTime(t) {
-      if (!t) return 0;
-      const parts = t.split(":").map(Number).reverse();
-      return parts.reduce((sum, v, i) => sum + v * Math.pow(60, i), 0);
+      // Очищаем GET-параметры из URL
+      history.replaceState(null, '', location.pathname);
     }
 
+    // Конвертирует "MM:SS" или "SS" в секунды
+    function parseTime(input) {
+      if (!input) return NaN;
+      if (input.includes(':')) {
+        const parts = input.split(':').map(Number).reverse();
+        return parts.reduce((sum, v, i) => sum + v * Math.pow(60, i), 0);
+      }
+      return parseInt(input, 10);
+    }
+
+    // Сохраняет метку из формы вручную
     function saveNote() {
-      const sec = parseTime(timeEl.value.trim());
-      const title = titleEl.value.trim();
-      if (!title) return alert("Введите тему.");
-      const url = prompt("URL видео (с #t=)?", location.href);
-      notes.push({ title, seconds: sec, url, created: new Date().toLocaleString() });
-      localStorage.setItem("vid_notes", JSON.stringify(notes));
-      timeEl.value = ""; titleEl.value = "";
+      const sec   = parseTime(document.getElementById('timeInput').value.trim());
+      const src   = document.getElementById('srcInput').value.trim();
+      const title = document.getElementById('titleInput').value.trim();
+      if (!src || isNaN(sec) || !title) {
+        return alert('Введите корректные время, URL и тему.');
+      }
+      notes.push({
+        title: title,
+        seconds: sec,
+        src: src,
+        created: new Date().toLocaleString()
+      });
+      localStorage.setItem('vid_notes', JSON.stringify(notes));
+      // Сброс полей
+      document.getElementById('timeInput').value = '';
+      document.getElementById('srcInput').value = '';
+      document.getElementById('titleInput').value = '';
       renderNotes();
     }
 
+    // Преобразует секунды в HH:MM:SS
     function formatTime(s) {
-      const h = String(Math.floor(s/3600)).padStart(2,'0'),
-            m = String(Math.floor((s%3600)/60)).padStart(2,'0'),
-            ss = String(s%60).padStart(2,'0');
-      return `${h}:${m}:${ss}`;
+      const h = Math.floor(s/3600);
+      const m = Math.floor((s%3600)/60);
+      const ss = s % 60;
+      return [h, m, ss].map(x => String(x).padStart(2,'0')).join(':');
     }
 
-    function renderNotes(filter="") {
-      const list = document.getElementById("notesList");
+    // Рендерит список меток
+    function renderNotes(filter = '') {
+      const list = document.getElementById('notesList');
       const q = filter.toLowerCase();
-      const displayed = notes.filter(n=>n.title.toLowerCase().includes(q));
-      list.innerHTML = displayed.map((n,i)=>
-        `<div class="note">
-           <input value="${n.title}" onchange="edit(${i}, this.value)">
-           <a href="${n.url}" target="_blank">Перейти</a>
-           <button onclick="del(${i})">🗑</button><br>
-           <small>🕓 ${n.created} | ⏱ ${formatTime(n.seconds)}</small>
-         </div>`
-      ).join("") || "<i>Метки не найдены.</i>";
+      const filtered = notes.filter(n => n.title.toLowerCase().includes(q));
+      list.innerHTML = '';
+      if (!filtered.length) {
+        list.innerHTML = '<i>Метки не найдены.</i>';
+        return;
+      }
+      filtered.forEach((n, i) => {
+        const div = document.createElement('div');
+        div.className = 'note';
+
+        const inp = document.createElement('input');
+        inp.value = n.title;
+        inp.onchange = () => {
+          n.title = inp.value;
+          localStorage.setItem('vid_notes', JSON.stringify(notes));
+        };
+
+        const a = document.createElement('a');
+        a.href = '?src=' + encodeURIComponent(n.src)
+               + '&time=' + n.seconds
+               + '&title=' + encodeURIComponent(n.title);
+        a.target = '_blank';
+        a.textContent = 'Перейти';
+
+        const btn = document.createElement('button');
+        btn.textContent = '🗑';
+        btn.onclick = () => {
+          if (confirm('Удалить?')) {
+            notes.splice(i, 1);
+            localStorage.setItem('vid_notes', JSON.stringify(notes));
+            renderNotes(filter);
+          }
+        };
+
+        const info = document.createElement('small');
+        info.textContent = `🕓 ${n.created} | ⏱ ${formatTime(n.seconds)}`;
+
+        div.append(inp, a, btn, document.createElement('br'), info);
+        list.append(div);
+      });
     }
 
-    function edit(i,v){ notes[i].title=v; localStorage.setItem("vid_notes",JSON.stringify(notes)); }
-    function del(i){ if(confirm("Удалить?")){ notes.splice(i,1); localStorage.setItem("vid_notes",JSON.stringify(notes)); renderNotes(); }}
-
+    // Инициализация
     renderNotes();
   </script>
 </body>
