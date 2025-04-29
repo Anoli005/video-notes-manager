@@ -41,4 +41,120 @@
           title = p.get('title'),
           time  = parseFloat(p.get('time'));
     if(src&&title&&!isNaN(time)){
-      notes.push({ src:decodeURIComponent
+      notes.push({ src:decodeURIComponent(src), title:decodeURIComponent(title), seconds:time, created:new Date().toLocaleString() });
+      localStorage.setItem("vid_notes",JSON.stringify(notes));
+      history.replaceState(null,'',location.pathname);
+    }
+  })();
+
+  const container = document.getElementById('playerContainer'),
+        urlInput  = document.getElementById('videoURL'),
+        titleEl   = document.getElementById('titleInput'),
+        btnLoad   = document.getElementById('btnLoad'),
+        btnSave   = document.getElementById('btnSave'),
+        search    = document.getElementById('search'),
+        list      = document.getElementById('notesList');
+
+  function playSrc(src, start=0){
+    container.innerHTML='';
+    const yt = src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/);
+    if(yt){
+      const ifr=document.createElement('iframe');
+      ifr.src=`https://www.youtube.com/embed/${yt[1]}?start=${start}&autoplay=1`;
+      ifr.width='100%'; ifr.height='480';
+      ifr.allow='accelerometer; autoplay; encrypted-media; picture-in-picture';
+      ifr.allowFullscreen=true;
+      container.appendChild(ifr);
+    } else {
+      const vid=document.createElement('video');
+      vid.controls=true; vid.src=src; vid.width=container.clientWidth;
+      container.appendChild(vid);
+      vid.addEventListener('loadedmetadata',()=>{ vid.currentTime=start; vid.play(); });
+    }
+  }
+
+  btnLoad.addEventListener('click',()=>{
+    const s=urlInput.value.trim();
+    if(!s) return alert('Введите ссылку');
+    playSrc(s,0);
+  });
+
+  btnSave.addEventListener('click',()=>{
+    let sec=0, src='';
+    const v=container.querySelector('video'),
+          i=container.querySelector('iframe');
+    if(v){
+      sec=Math.round(v.currentTime); src=v.src;
+    } else if(i){
+      const inp=prompt('⏱ Время в секундах (оставьте текущее если OK):','0');
+      if(!inp) return; sec=parseInt(inp,10);
+      if(isNaN(sec)) return alert('Неверное число');
+      src=i.src;
+    } else return alert('Сначала загрузите видео');
+    const t=titleEl.value.trim();
+    if(!t) return alert('Введите тему');
+    notes.push({ title:t, seconds:sec, src, created:new Date().toLocaleString() });
+    localStorage.setItem('vid_notes',JSON.stringify(notes));
+    titleEl.value=''; renderNotes();
+  });
+
+  search.addEventListener('input',()=>renderNotes());
+
+  function fmt(s){
+    const h=String(Math.floor(s/3600)).padStart(2,'0'),
+          m=String(Math.floor((s%3600)/60)).padStart(2,'0'),
+          sec=String(Math.floor(s%60)).padStart(2,'0');
+    return `${h}:${m}:${sec}`;
+  }
+
+  function renderNotes(){
+    const q=search.value.toLowerCase();
+    list.innerHTML = notes
+      .map((n,i)=>({n,i}))
+      .filter(o=>o.n.title.toLowerCase().includes(q))
+      .map(({n,i})=>{
+        // ВК-видео: просто ссылка, времени задать нельзя
+        let link;
+        if(/vk\.com\/video/.test(n.src)){
+          link = n.src;
+        } else {
+          const yt=n.src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/);
+          link = yt
+            ? `https://www.youtube.com/watch?v=${yt[1]}&t=${n.seconds}s`
+            : n.src;
+        }
+        return `
+          <div class="note">
+            <input value="${n.title}" data-i="${i}" class="edit">
+            <button class="goto" data-link="${link}">Перейти</button>
+            <button class="del" data-i="${i}">🗑 Удалить</button><br>
+            <small>🕓 ${n.created} | ⏱ ${fmt(n.seconds)}</small>
+          </div>`;
+      }).join('') || '<i>Метки не найдены.</i>';
+  }
+
+  // делегирование кликов
+  list.addEventListener('click',e=>{
+    if(e.target.matches('button.goto')){
+      window.open(e.target.dataset.link,'_blank');
+    }
+    if(e.target.matches('button.del')){
+      const i=+e.target.dataset.i;
+      if(confirm('Удалить?')){ notes.splice(i,1); localStorage.setItem('vid_notes',JSON.stringify(notes)); renderNotes(); }
+    }
+  });
+
+  // редактирование заголовка
+  list.addEventListener('change',e=>{
+    if(e.target.matches('input.edit')){
+      const i=+e.target.dataset.i;
+      notes[i].title=e.target.value;
+      localStorage.setItem('vid_notes',JSON.stringify(notes));
+    }
+  });
+
+  renderNotes();
+</script>
+
+</body>
+</html>
