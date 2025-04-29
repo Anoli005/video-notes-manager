@@ -9,7 +9,7 @@
     .note { border-bottom:1px solid #ccc; padding:10px 0 }
     .note input { width:60% }
     .note button, .note a { margin-left:10px }
-    #playerContainer { width:100%; margin:20px 0; }
+    #playerContainer { width:100%; margin:20px 0 }
     label { font-weight:bold }
     small { color:#555 }
   </style>
@@ -21,7 +21,6 @@
 <input id="videoURL" placeholder="🔗 Вставьте ссылку на видео (YouTube или .mp4)" />
 <button onclick="loadVideo()">Загрузить видео</button>
 
-<!-- Здесь будет либо <iframe>, либо <video> -->
 <div id="playerContainer"></div>
 
 <label for="titleInput">📝 Тема метки:</label>
@@ -34,9 +33,10 @@
 <div id="notesList"></div>
 
 <script>
+  // 1) читаем существующие метки
   let notes = JSON.parse(localStorage.getItem("vid_notes") || "[]");
 
-  // авто-импорт из URL
+  // 2) авто-добавление метки при заходе по букмарклету
   ;(function(){
     const p = new URLSearchParams(location.search);
     const src   = p.get('src');
@@ -49,11 +49,11 @@
     }
   })();
 
+  // 3) функции для плеера
   const container = document.getElementById('playerContainer');
   const titleEl   = document.getElementById("titleInput");
   const urlInput  = document.getElementById("videoURL");
 
-  // Вставляет в контейнер либо iframe YouTube, либо video.mp4
   function playSrc(src, startTime=0) {
     container.innerHTML = '';
     const youTubeMatch = src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]{11})/);
@@ -84,19 +84,17 @@
   }
 
   function saveNote() {
-    // пытаемся получить время из iframe? для YouTube надо вводить вручную
-    let sec = 0, src = '';
+    let sec = 0, src='';
     const iframe = container.querySelector('iframe');
     const video  = container.querySelector('video');
     if (video) {
       sec = Math.floor(video.currentTime);
       src = video.src;
     } else if (iframe) {
-      // у YouTube не узнаем currentTime, спросим вручную
       const i = prompt("⏱ Введите время (m:s или s)");
       if (!i) return;
       sec = i.includes(':')
-        ? i.split(':').reduce((a,b,i)=>i?b:a*60+ +b,0)
+        ? i.split(':').reduce((a,b,i)=>i?+b:a*60+ +b,0)
         : parseInt(i,10);
       if (isNaN(sec)) return alert("Некорректное время");
       src = iframe.src;
@@ -118,23 +116,31 @@
     return `${h}:${m}:${sec}`;
   }
 
+  // 4) рендер списка и переход по метке во внешнюю вкладку
   function renderNotes(filter="") {
     const list = document.getElementById("notesList");
-    const q = filter.toLowerCase();
-    const filtered = notes.filter(n=>n.title.toLowerCase().includes(q));
-    list.innerHTML = filtered.map((n,i)=>`
-      <div class="note">
-        <input value="${n.title}" onchange="editNote(${i},this.value)">
-        <a href="#" onclick="goToNote(${i})">Перейти</a>
-        <button onclick="deleteNote(${i})">🗑 Удалить</button><br>
-        <small>🕓 ${n.created} | ⏱ ${formatTime(n.seconds)}</small>
-      </div>
-    `).join('') || "<i>Метки не найдены.</i>";
-  }
-
-  function goToNote(i) {
-    const n = notes[i];
-    playSrc(n.src, n.seconds);
+    const q    = filter.toLowerCase();
+    const html = notes
+      .filter(n => n.title.toLowerCase().includes(q))
+      .map((n,i) => {
+        let link;
+        const yt = n.src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([A-Za-z0-9_-]{11})/);
+        if (yt) {
+          link = `https://www.youtube.com/watch?v=${yt[1]}&t=${n.seconds}s`;
+        } else {
+          link = n.src;
+        }
+        return `
+          <div class="note">
+            <input value="${n.title}" onchange="editNote(${i},this.value)">
+            <a href="${link}" target="_blank">Перейти</a>
+            <button onclick="deleteNote(${i})">🗑 Удалить</button><br>
+            <small>🕓 ${n.created} | ⏱ ${formatTime(n.seconds)}</small>
+          </div>
+        `;
+      })
+      .join('');
+    list.innerHTML = html || "<i>Метки не найдены.</i>";
   }
 
   function editNote(i, value) {
@@ -150,6 +156,7 @@
     }
   }
 
+  // 5) начальная отрисовка
   renderNotes();
 </script>
 
