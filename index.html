@@ -1,28 +1,57 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Менеджер меток к видео</title>
+  <title>🎬 Менеджер меток к видео</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: auto; }
-    input, button { padding: 8px; font-size: 16px; margin: 4px 0; width: 100%; }
-    .note { border-bottom: 1px solid #ccc; padding: 10px 0; }
-    .note input { width: 60%; }
-    .note button, .note a { margin-left: 10px; }
-    video { width: 100%; margin-bottom: 20px; }
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: auto;
+      background: #f9f9f9;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 16px;
+      margin: 6px 0;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .note {
+      border-bottom: 1px solid #ccc;
+      padding: 10px 0;
+    }
+    .note input {
+      width: 60%;
+    }
+    .note button, .note a {
+      margin-left: 10px;
+    }
+    video {
+      width: 100%;
+      margin: 20px 0;
+      display: none;
+    }
+    label {
+      font-weight: bold;
+    }
+    small {
+      color: #555;
+    }
   </style>
 </head>
 <body>
 
 <h2>🎬 Менеджер меток к видео</h2>
 
-<input id="videoURL" placeholder="🔗 Вставьте ссылку на видео" />
+<input id="videoURL" placeholder="🔗 Вставьте ссылку на видео (например, .mp4)" />
 <button onclick="loadVideo()">Загрузить видео</button>
+
 <video id="player" controls></video>
 
-<label>📝 Тема метки:</label>
+<label for="titleInput">📝 Тема метки:</label>
 <input id="titleInput" placeholder="Например: Катализаторы" />
-
 <button onclick="saveNote()">📌 Сохранить метку по текущему времени</button>
 
 <hr>
@@ -40,6 +69,7 @@
     const src = urlInput.value.trim();
     if (!src) return alert("Введите ссылку на видео.");
     player.src = src;
+    player.style.display = "block"; // Показать плеер после загрузки
   }
 
   function saveNote() {
@@ -74,7 +104,7 @@
       <div class="note">
         <input value="${n.title}" onchange="editNote(${i}, this.value)">
         <a href="#" onclick="goToNote(${i})">Перейти</a>
-        <button onclick="deleteNote(${i})">🗑</button><br>
+        <button onclick="deleteNote(${i})">🗑 Удалить</button><br>
         <small>🕓 ${n.created} | ⏱ ${formatTime(n.seconds)}</small>
       </div>
     `).join("") || "<i>Метки не найдены.</i>";
@@ -83,6 +113,7 @@
   function goToNote(i) {
     const n = notes[i];
     player.src = n.src;
+    player.style.display = "block";
     player.addEventListener("loadedmetadata", function jump() {
       player.currentTime = n.seconds;
       player.play();
