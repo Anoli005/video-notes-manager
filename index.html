@@ -2,47 +2,46 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>🎬 Менеджер меток к видео</title>
+  <title>Менеджер меток к видео</title>
   <style>
-    body { font-family: sans-serif; padding:20px; max-width:800px; margin:auto; background:#f9f9f9 }
-    input, button { padding:10px; font-size:16px; margin:6px 0; width:100%; box-sizing:border-box }
+    body { font-family:sans-serif; padding:20px; max-width:800px; margin:auto }
+    input, button { width:100%; padding:10px; margin:6px 0; font-size:16px }
     .note { border-bottom:1px solid #ccc; padding:10px 0 }
-    .note input { width:60%; }
-    .note .goto, .note .del { margin-left:10px; }
-    #playerContainer { width:100%; margin:20px 0 }
-    label { font-weight:bold }
+    .note input { width:60%; display:inline-block }
+    .note a, .note button { margin-left:10px }
+    #playerContainer { margin:20px 0 }
     small { color:#555 }
   </style>
 </head>
 <body>
 
-<h2>🎬 Менеджер меток к видео</h2>
+<h2>🎬 Менеджер меток</h2>
 
-<input id="videoURL" placeholder="🔗 Ссылка на видео (YouTube или .mp4)" />
+<input id="videoURL" placeholder="Ссылка на видео (YouTube или .mp4 или VK)" />
 <button id="btnLoad">Загрузить видео</button>
 
 <div id="playerContainer"></div>
 
-<label>📝 Тема метки:</label>
-<input id="titleInput" placeholder="Например: Катализаторы" />
-<button id="btnSave">📌 Сохранить метку</button>
+<input id="titleInput" placeholder="Тема метки" />
+<button id="btnSave">Сохранить метку</button>
 
 <hr>
 
-<input id="search" placeholder="🔍 Поиск меток" />
+<input id="search" placeholder="Поиск по теме…" />
 <div id="notesList"></div>
 
 <script>
   let notes = JSON.parse(localStorage.getItem("vid_notes")||"[]");
-  // автозахват из URL (букмарклет)
+
+  // При заходе из букмарклета
   (function(){
     const p = new URLSearchParams(location.search),
           src   = p.get('src'),
           title = p.get('title'),
           time  = parseFloat(p.get('time'));
-    if(src&&title&&!isNaN(time)){
-      notes.push({ src:decodeURIComponent(src), title:decodeURIComponent(title), seconds:time, created:new Date().toLocaleString() });
-      localStorage.setItem("vid_notes",JSON.stringify(notes));
+    if(src && title && !isNaN(time)){
+      notes.push({ src: decodeURIComponent(src), title: decodeURIComponent(title), seconds: time, created: new Date().toLocaleString() });
+      localStorage.setItem("vid_notes", JSON.stringify(notes));
       history.replaceState(null,'',location.pathname);
     }
   })();
@@ -55,106 +54,119 @@
         search    = document.getElementById('search'),
         list      = document.getElementById('notesList');
 
-  function playSrc(src, start=0){
-    container.innerHTML='';
-    const yt = src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/);
-    if(yt){
-      const ifr=document.createElement('iframe');
-      ifr.src=`https://www.youtube.com/embed/${yt[1]}?start=${start}&autoplay=1`;
-      ifr.width='100%'; ifr.height='480';
-      ifr.allow='accelerometer; autoplay; encrypted-media; picture-in-picture';
-      ifr.allowFullscreen=true;
-      container.appendChild(ifr);
-    } else {
-      const vid=document.createElement('video');
-      vid.controls=true; vid.src=src; vid.width=container.clientWidth;
-      container.appendChild(vid);
-      vid.addEventListener('loadedmetadata',()=>{ vid.currentTime=start; vid.play(); });
+  function play(src, t=0){
+    container.innerHTML = '';
+    // YouTube
+    let m = src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/);
+    if(m){
+      let id = m[1];
+      container.innerHTML = `<iframe width="100%" height="480" src="https://www.youtube.com/embed/${id}?start=${t}&autoplay=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+      return;
     }
+    // else MP4 or VK direct
+    let vid = document.createElement('video');
+    vid.controls = true;
+    vid.src = src;
+    vid.width = container.clientWidth;
+    container.appendChild(vid);
+    vid.addEventListener('loadedmetadata', ()=>{
+      vid.currentTime = t;
+      vid.play();
+    });
   }
 
-  btnLoad.addEventListener('click',()=>{
-    const s=urlInput.value.trim();
+  btnLoad.onclick = ()=> {
+    let s = urlInput.value.trim();
     if(!s) return alert('Введите ссылку');
-    playSrc(s,0);
-  });
+    play(s, 0);
+  };
 
-  btnSave.addEventListener('click',()=>{
-    let sec=0, src='';
-    const v=container.querySelector('video'),
-          i=container.querySelector('iframe');
-    if(v){
-      sec=Math.round(v.currentTime); src=v.src;
-    } else if(i){
-      const inp=prompt('⏱ Время в секундах (оставьте текущее если OK):','0');
-      if(!inp) return; sec=parseInt(inp,10);
-      if(isNaN(sec)) return alert('Неверное число');
-      src=i.src;
-    } else return alert('Сначала загрузите видео');
-    const t=titleEl.value.trim();
+  btnSave.onclick = ()=> {
+    // определяем src и время
+    let sec = 0, src = '', v = container.querySelector('video'), i = container.querySelector('iframe');
+    if(location.host.includes('vk.com')) {
+      // для VK всегда берем страницу
+      src = location.href.replace(/#.*$/,'');
+      // если есть video элемент, читаем время, иначе спрашиваем
+      if(v) sec = Math.round(v.currentTime);
+      else {
+        let inp = prompt('Время в секундах','0');
+        if(!inp) return;
+        sec = parseInt(inp,10);
+        if(isNaN(sec)) return alert('Неверное время');
+      }
+    } else if(v) {
+      sec = Math.round(v.currentTime);
+      src = v.currentSrc;
+    } else if(i) {
+      let inp = prompt('Время в секундах','0');
+      if(!inp) return;
+      sec = parseInt(inp,10);
+      if(isNaN(sec)) return alert('Неверное время');
+      src = i.src;
+    } else {
+      return alert('Сначала загрузите видео');
+    }
+
+    let t = titleEl.value.trim();
     if(!t) return alert('Введите тему');
-    notes.push({ title:t, seconds:sec, src, created:new Date().toLocaleString() });
-    localStorage.setItem('vid_notes',JSON.stringify(notes));
-    titleEl.value=''; renderNotes();
-  });
+    notes.push({ title: t, seconds: sec, src: src, created: new Date().toLocaleString() });
+    localStorage.setItem("vid_notes", JSON.stringify(notes));
+    titleEl.value = '';
+    render();
+  };
 
-  search.addEventListener('input',()=>renderNotes());
+  search.oninput = render;
 
   function fmt(s){
-    const h=String(Math.floor(s/3600)).padStart(2,'0'),
-          m=String(Math.floor((s%3600)/60)).padStart(2,'0'),
-          sec=String(Math.floor(s%60)).padStart(2,'0');
+    let h = String(Math.floor(s/3600)).padStart(2,'0'),
+        m = String(Math.floor((s%3600)/60)).padStart(2,'0'),
+        sec= String(Math.floor(s%60)).padStart(2,'0');
     return `${h}:${m}:${sec}`;
   }
 
-  function renderNotes(){
-    const q=search.value.toLowerCase();
+  function render(){
+    let q = search.value.toLowerCase();
     list.innerHTML = notes
       .map((n,i)=>({n,i}))
-      .filter(o=>o.n.title.toLowerCase().includes(q))
+      .filter(x=>x.n.title.toLowerCase().includes(q))
       .map(({n,i})=>{
-        // ВК-видео: просто ссылка, времени задать нельзя
+        // строим прямую ссылку
         let link;
-        if(/vk\.com\/video/.test(n.src)){
-          link = n.src;
+        if(n.src.includes('vk.com/video')) {
+          link = n.src; // страница VK
         } else {
-          const yt=n.src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/);
-          link = yt
-            ? `https://www.youtube.com/watch?v=${yt[1]}&t=${n.seconds}s`
-            : n.src;
+          let m = n.src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/);
+          if(m) link = `https://www.youtube.com/watch?v=${m[1]}&t=${n.seconds}s`;
+          else link = n.src;
         }
-        return `
-          <div class="note">
-            <input value="${n.title}" data-i="${i}" class="edit">
-            <button class="goto" data-link="${link}">Перейти</button>
-            <button class="del" data-i="${i}">🗑 Удалить</button><br>
-            <small>🕓 ${n.created} | ⏱ ${fmt(n.seconds)}</small>
-          </div>`;
-      }).join('') || '<i>Метки не найдены.</i>';
+        return `<div class="note">
+          <input value="${n.title}" data-i="${i}" class="edit">
+          <a href="${link}" target="_blank" rel="noopener">Перейти</a>
+          <button data-i="${i}" class="del">🗑 Удалить</button><br>
+          <small>${n.created} | ${fmt(n.seconds)}</small>
+        </div>`;
+      }).join('') || '<i>Меток нет</i>';
   }
 
-  // делегирование кликов
-  list.addEventListener('click',e=>{
-    if(e.target.matches('button.goto')){
-      window.open(e.target.dataset.link,'_blank');
+  // делегируем
+  list.onclick = e => {
+    if(e.target.classList.contains('del')) {
+      let i = +e.target.dataset.i;
+      if(confirm('Удалить?')) {
+        notes.splice(i,1);
+        localStorage.setItem("vid_notes", JSON.stringify(notes));
+        render();
+      }
     }
-    if(e.target.matches('button.del')){
-      const i=+e.target.dataset.i;
-      if(confirm('Удалить?')){ notes.splice(i,1); localStorage.setItem('vid_notes',JSON.stringify(notes)); renderNotes(); }
+    if(e.target.classList.contains('edit')) {
+      let i = +e.target.dataset.i;
+      notes[i].title = e.target.value;
+      localStorage.setItem("vid_notes", JSON.stringify(notes));
     }
-  });
+  };
 
-  // редактирование заголовка
-  list.addEventListener('change',e=>{
-    if(e.target.matches('input.edit')){
-      const i=+e.target.dataset.i;
-      notes[i].title=e.target.value;
-      localStorage.setItem('vid_notes',JSON.stringify(notes));
-    }
-  });
-
-  renderNotes();
+  render();
 </script>
-
 </body>
 </html>
