@@ -2,171 +2,54 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Менеджер меток к видео</title>
+  <title>Мини-менеджер меток</title>
   <style>
-    body { font-family:sans-serif; padding:20px; max-width:800px; margin:auto }
-    input, button { width:100%; padding:10px; margin:6px 0; font-size:16px }
-    .note { border-bottom:1px solid #ccc; padding:10px 0 }
-    .note input { width:60%; display:inline-block }
-    .note a, .note button { margin-left:10px }
-    #playerContainer { margin:20px 0 }
-    small { color:#555 }
+    body { font-family: sans-serif; padding:20px; max-width:600px; margin:auto }
+    input, button { font-size:16px; padding:8px; margin:4px 0; width:100%; box-sizing:border-box }
+    ul { list-style:none; padding:0 }
+    li { padding:8px 0; border-bottom:1px solid #ddd }
+    a { color: blue; text-decoration: underline; cursor: pointer; }
   </style>
 </head>
 <body>
 
-<h2>🎬 Менеджер меток</h2>
+<h2>Менеджер меток</h2>
 
-<input id="videoURL" placeholder="Ссылка на видео (YouTube или .mp4 или VK)" />
-<button id="btnLoad">Загрузить видео</button>
+<input id="url" placeholder="Ссылка на видео (VK, YouTube или .mp4)" />
+<button id="load">Загрузить и поставить метку</button>
 
-<div id="playerContainer"></div>
-
-<input id="titleInput" placeholder="Тема метки" />
-<button id="btnSave">Сохранить метку</button>
-
-<hr>
-
-<input id="search" placeholder="Поиск по теме…" />
-<div id="notesList"></div>
+<ul id="notes"></ul>
 
 <script>
-  let notes = JSON.parse(localStorage.getItem("vid_notes")||"[]");
+  const notes = [];
 
-  // При заходе из букмарклета
-  (function(){
-    const p = new URLSearchParams(location.search),
-          src   = p.get('src'),
-          title = p.get('title'),
-          time  = parseFloat(p.get('time'));
-    if(src && title && !isNaN(time)){
-      notes.push({ src: decodeURIComponent(src), title: decodeURIComponent(title), seconds: time, created: new Date().toLocaleString() });
-      localStorage.setItem("vid_notes", JSON.stringify(notes));
-      history.replaceState(null,'',location.pathname);
-    }
-  })();
-
-  const container = document.getElementById('playerContainer'),
-        urlInput  = document.getElementById('videoURL'),
-        titleEl   = document.getElementById('titleInput'),
-        btnLoad   = document.getElementById('btnLoad'),
-        btnSave   = document.getElementById('btnSave'),
-        search    = document.getElementById('search'),
-        list      = document.getElementById('notesList');
-
-  function play(src, t=0){
-    container.innerHTML = '';
-    // YouTube
-    let m = src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/);
-    if(m){
-      let id = m[1];
-      container.innerHTML = `<iframe width="100%" height="480" src="https://www.youtube.com/embed/${id}?start=${t}&autoplay=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
-      return;
-    }
-    // else MP4 or VK direct
-    let vid = document.createElement('video');
-    vid.controls = true;
-    vid.src = src;
-    vid.width = container.clientWidth;
-    container.appendChild(vid);
-    vid.addEventListener('loadedmetadata', ()=>{
-      vid.currentTime = t;
-      vid.play();
-    });
-  }
-
-  btnLoad.onclick = ()=> {
-    let s = urlInput.value.trim();
-    if(!s) return alert('Введите ссылку');
-    play(s, 0);
-  };
-
-  btnSave.onclick = ()=> {
-    // определяем src и время
-    let sec = 0, src = '', v = container.querySelector('video'), i = container.querySelector('iframe');
-    if(location.host.includes('vk.com')) {
-      // для VK всегда берем страницу
-      src = location.href.replace(/#.*$/,'');
-      // если есть video элемент, читаем время, иначе спрашиваем
-      if(v) sec = Math.round(v.currentTime);
-      else {
-        let inp = prompt('Время в секундах','0');
-        if(!inp) return;
-        sec = parseInt(inp,10);
-        if(isNaN(sec)) return alert('Неверное время');
-      }
-    } else if(v) {
-      sec = Math.round(v.currentTime);
-      src = v.currentSrc;
-    } else if(i) {
-      let inp = prompt('Время в секундах','0');
-      if(!inp) return;
-      sec = parseInt(inp,10);
-      if(isNaN(sec)) return alert('Неверное время');
-      src = i.src;
-    } else {
-      return alert('Сначала загрузите видео');
-    }
-
-    let t = titleEl.value.trim();
-    if(!t) return alert('Введите тему');
-    notes.push({ title: t, seconds: sec, src: src, created: new Date().toLocaleString() });
-    localStorage.setItem("vid_notes", JSON.stringify(notes));
-    titleEl.value = '';
+  document.getElementById('load').onclick = () => {
+    const src = document.getElementById('url').value.trim();
+    if (!src) return alert('Введите ссылку');
+    const time = prompt('Время в секундах (например 300 = 5 мин):', '0');
+    if (time === null) return;
+    const sec = parseInt(time,10);
+    if (isNaN(sec)) return alert('Неправильное время');
+    notes.push({ src, sec });
     render();
   };
 
-  search.oninput = render;
-
-  function fmt(s){
-    let h = String(Math.floor(s/3600)).padStart(2,'0'),
-        m = String(Math.floor((s%3600)/60)).padStart(2,'0'),
-        sec= String(Math.floor(s%60)).padStart(2,'0');
-    return `${h}:${m}:${sec}`;
-  }
-
-  function render(){
-    let q = search.value.toLowerCase();
-    list.innerHTML = notes
-      .map((n,i)=>({n,i}))
-      .filter(x=>x.n.title.toLowerCase().includes(q))
-      .map(({n,i})=>{
-        // строим прямую ссылку
-        let link;
-        if(n.src.includes('vk.com/video')) {
-          link = n.src; // страница VK
-        } else {
-          let m = n.src.match(/(?:youtu\.be\/|youtube\.com\/watch\?v=)([\w-]{11})/);
-          if(m) link = `https://www.youtube.com/watch?v=${m[1]}&t=${n.seconds}s`;
-          else link = n.src;
-        }
-        return `<div class="note">
-          <input value="${n.title}" data-i="${i}" class="edit">
-          <a href="${link}" target="_blank" rel="noopener">Перейти</a>
-          <button data-i="${i}" class="del">🗑 Удалить</button><br>
-          <small>${n.created} | ${fmt(n.seconds)}</small>
-        </div>`;
-      }).join('') || '<i>Меток нет</i>';
-  }
-
-  // делегируем
-  list.onclick = e => {
-    if(e.target.classList.contains('del')) {
-      let i = +e.target.dataset.i;
-      if(confirm('Удалить?')) {
-        notes.splice(i,1);
-        localStorage.setItem("vid_notes", JSON.stringify(notes));
-        render();
+  function render() {
+    const ul = document.getElementById('notes');
+    ul.innerHTML = '';
+    notes.forEach((n,i) => {
+      // определяем внешний линк
+      let link = n.src;
+      const yt = link.match(/youtu\.be\/(.{11})/) || link.match(/youtube\.com\/watch\?v\=(.{11})/);
+      if (yt) {
+        link = `https://www.youtube.com/watch?v=${yt[1]}&t=${n.sec}s`;
       }
-    }
-    if(e.target.classList.contains('edit')) {
-      let i = +e.target.dataset.i;
-      notes[i].title = e.target.value;
-      localStorage.setItem("vid_notes", JSON.stringify(notes));
-    }
-  };
-
-  render();
+      const li = document.createElement('li');
+      li.innerHTML = `#${i+1} — <a href="${link}" target="_blank">Перейти на ${n.sec}s</a>`;
+      ul.appendChild(li);
+    });
+  }
 </script>
+
 </body>
 </html>
