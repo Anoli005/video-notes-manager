@@ -31,6 +31,15 @@
     const timeEl = document.getElementById("timeInput");
     const titleEl = document.getElementById("titleInput");
     let notes = JSON.parse(localStorage.getItem("vid_notes") || "[]");
+    // Если в URL есть параметр add=ТЕМА|SEC|URL — автоматически добавляем
+const params = new URLSearchParams(location.search);
+if (params.has('add')) {
+  const [title, sec, url] = params.get('add').split('|').map(decodeURIComponent);
+  notes.push({ title, seconds: +sec, url, created: new Date().toLocaleString() });
+  localStorage.setItem('vid_notes', JSON.stringify(notes));
+  history.replaceState(null, '', location.pathname); // убираем ?add=
+}
+
 
     function parseTime(t) {
       if (!t) return 0;
