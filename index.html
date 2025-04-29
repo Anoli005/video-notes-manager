@@ -31,14 +31,35 @@
     const timeEl = document.getElementById("timeInput");
     const titleEl = document.getElementById("titleInput");
     let notes = JSON.parse(localStorage.getItem("vid_notes") || "[]");
-    // Если в URL есть параметр add=ТЕМА|SEC|URL — автоматически добавляем
-const params = new URLSearchParams(location.search);
-if (params.has('add')) {
-  const [title, sec, url] = params.get('add').split('|').map(decodeURIComponent);
-  notes.push({ title, seconds: +sec, url, created: new Date().toLocaleString() });
-  localStorage.setItem('vid_notes', JSON.stringify(notes));
-  history.replaceState(null, '', location.pathname); // убираем ?add=
+    const params = new URLSearchParams(location.search);
+if (params.has('src') && params.has('time')) {
+  // 1) читаем из URL
+  const rawSrc  = decodeURIComponent(params.get('src'));
+  const sec     = parseFloat(params.get('time')) || 0;
+  const title   = params.get('title') ? decodeURIComponent(params.get('title')) : "";
+
+  // 2) показываем видео
+  const player = document.getElementById("player");
+  player.src = rawSrc;
+  player.addEventListener("loadedmetadata", () => {
+    player.currentTime = sec;
+    // если хотите сразу начать воспроизведение, раскомментируйте:
+    // player.play();
+  });
+
+  // 3) (опционально) создаём заметку сразу же
+  notes.push({
+    title: title || `Метка ${formatTime(sec)}`,
+    seconds: sec,
+    url: rawSrc + "#t=" + sec,
+    created: new Date().toLocaleString()
+  });
+  localStorage.setItem("vid_notes", JSON.stringify(notes));
+
+  // 4) чистим строку параметров, чтобы 목록 не дублировался при перезагрузке
+  history.replaceState(null, "", location.pathname);
 }
+
 
 
     function parseTime(t) {
